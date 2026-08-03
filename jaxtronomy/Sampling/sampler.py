@@ -109,6 +109,9 @@ class Sampler(Sampler_lenstronomy):
         result, [log_likelihood_list, pos_list, vel_list] = pso.optimize(
             n_iterations, verbose=verbose
         )
+        # Guarantees float64 parameter values regardless of the PSO implementation and
+        # the backend it ran on; JAX computes in float32 unless x64 is enabled
+        result = np.asarray(result, dtype=float)
 
         kwargs_return = self.chain.param.args2kwargs(result)
         if verbose:

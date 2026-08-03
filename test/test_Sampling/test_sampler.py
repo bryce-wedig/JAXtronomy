@@ -156,6 +156,15 @@ class TestSampler(object):
         # for parallelization
         npt.assert_warns(UserWarning, self.sampler.pso, 1.5, n_iterations)
 
+    def test_pso_result_dtype(self, disable_x64):
+        # The best fit parameters must come back as a float64 array whichever PSO
+        # implementation ran, so that they are usable as Python floats downstream.
+        # Without the cast in Sampler.pso, the non-JIT PSO returns a list and the JIT
+        # PSO returns a float32 array, so the result type depends on the backend.
+        result, _ = self.sampler.pso(2, 2, lower_start=None, upper_start=None)
+        assert result.dtype == np.float64
+        assert all(isinstance(value, float) for value in result)
+
     def test_mcmc_emcee(self):
         n_walkers = 36
         n_run = 2

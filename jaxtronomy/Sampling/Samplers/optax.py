@@ -3,6 +3,7 @@ __author__ = "ahuang314"
 import jax
 from jax import jit, numpy as jnp
 from functools import partial
+import numpy as np
 import optax
 import numpyro, numpyro.distributions as dist
 from numpyro.infer.util import constrain_fn, unconstrain_fn
@@ -78,7 +79,10 @@ class OptaxMinimizer:
             params={"args": best_params},
         )["args"]
 
-        return best_params
+        # The minimization runs in float32 unless x64 is enabled. The result is cast to
+        # a float64 numpy array so that the returned parameters are Python floats rather
+        # than 0d jax arrays, matching the PSO samplers and lenstronomy.
+        return np.asarray(best_params, dtype=float)
 
     @partial(jit, static_argnums=0)
     def run_single(self, init_params, tol):

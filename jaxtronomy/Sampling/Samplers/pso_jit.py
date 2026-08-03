@@ -129,7 +129,15 @@ class ParticleSwarmOptimizerJIT(object):
         )
         self.set_global_best(global_best_position, None, global_best_fitness)
 
-        return np.array(global_best_position), [log_likelihood_list, pos_list, vel_list]
+        # JAX computes in float32 unless x64 is enabled, so the best position is cast
+        # back to float64 here. This keeps the returned parameters backend independent
+        # and consistent with the non-JIT PSO and with lenstronomy, whose parameter
+        # values are Python-float compatible (np.float32 is not a subclass of float).
+        return np.asarray(global_best_position, dtype=float), [
+            log_likelihood_list,
+            pos_list,
+            vel_list,
+        ]
 
     @partial(jit, static_argnums=(0, 7, 12))
     def run_iterations(

@@ -17,6 +17,30 @@ from jaxtronomy.Data.imaging_data import ImageData
 from lenstronomy.Data.psf import PSF
 
 
+def assert_python_floats(kwargs_result):
+    """Asserts that every scalar parameter value in a kwargs_result is usable as a
+    Python float.
+
+    Since JAX computes in float32 unless x64 is enabled, samplers can return float32
+    values, which are not instances of Python float (unlike np.float64). Downstream code
+    commonly filters parameters with isinstance(value, (int, float)) to build priors or
+    bounds around a previous best fit, and silently skips every parameter if this does
+    not hold. Non-scalar values, such as the amp arrays of a linear solve, are not
+    subject to this check.
+
+    :param kwargs_result: dict of lists of kwargs, as returned by
+        FittingSequence.best_fit()
+    """
+    for kwargs_list in kwargs_result.values():
+        for kwargs in kwargs_list:
+            for name, value in kwargs.items():
+                if np.ndim(value) != 0:
+                    continue
+                assert isinstance(
+                    value, (int, float)
+                ), f"{name} has type {type(value)}, which is not a Python int or float"
+
+
 class TestFittingSequence(object):
     """Test the fitting sequences."""
 
@@ -418,6 +442,27 @@ class TestFittingSequence(object):
         fitting_list5 = [["calibrate_images", {}]]
         with t.assertRaises(ValueError):
             fittingSequence.fit_sequence(fitting_list5)
+
+    def test_best_fit_dtype(self, disable_x64):
+        # Chained fits commonly build bounds around a previous best fit while filtering
+        # parameters with isinstance(value, (int, float)). This silently skips every
+        # parameter if the samplers leak float32 values into the parameter state, which
+        # then makes UpdateManager.check_initial_state raise on the following fit.
+        fittingSequence = FittingSequence(
+            self.kwargs_data_joint,
+            self.kwargs_model,
+            self.kwargs_constraints,
+            self.kwargs_likelihood,
+            self.kwargs_params,
+        )
+        fitting_list = [
+            ["PSO", {"sigma_scale": 1, "n_particles": 2, "n_iterations": 2}],
+            ["optax", {"num_chains": 1, "maxiter": 2, "rng_seed": 0}],
+        ]
+        fittingSequence.fit_sequence(fitting_list)
+
+        assert_python_floats(fittingSequence.best_fit(bijective=False))
+        assert_python_floats(fittingSequence.best_fit(bijective=True))
 
     def test_cobaya(self):
         np.random.seed(42)

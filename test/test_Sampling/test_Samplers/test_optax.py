@@ -38,6 +38,23 @@ class TestJaxoptMinimizer(object):
         final_result = self.minimizer2.run(num_chains=3, rng_seed=0, tol=1e-14)
         npt.assert_array_almost_equal(final_result, [0.25], decimal=2)
 
+    def test_result_dtype(self, disable_x64):
+        # The minimization runs in float32 unless x64 is enabled. The returned
+        # parameters must be a float64 numpy array rather than a float32 jax array,
+        # so that indexing them yields Python floats downstream.
+        minimizer = OptaxMinimizer(
+            self._logL,
+            np.array([0.7]),
+            np.array([0.2]),
+            np.array([0.0]),
+            np.array([0.9]),
+            maxiter=200,
+        )
+        final_result = minimizer.run(num_chains=1, rng_seed=0, tol=1e-14)
+        assert isinstance(final_result, np.ndarray)
+        assert final_result.dtype == np.float64
+        assert all(isinstance(value, float) for value in final_result)
+
     def test_loss(self):
         args_constrained = np.array([0.7])
         args_unconstrained = unconstrain_fn(
